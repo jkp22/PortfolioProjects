@@ -1,0 +1,286 @@
+---
+title: "Cyclist_analysis"
+author: "Kyle Pinca"
+date: "8/5/2022"
+output: html_document
+---
+```{r global_options}
+knitr::opts_chunk$set(fig.path='Figs/')
+```
+
+```{r}
+library(tidyverse)
+```
+```{r}
+library(lubridate)  #helps wrangle date attributes
+library(ggplot2)
+library(gghighlight)
+```
+### Placing csv's into variables
+```{r}
+
+cyc_2021_05 =  read.csv("202105-divvy-tripdata.csv")
+cyc_2021_06 =  read.csv("202106-divvy-tripdata.csv")
+cyc_2021_07 =  read.csv("202107-divvy-tripdata.csv")
+cyc_2021_08 =  read.csv("202108-divvy-tripdata.csv")
+cyc_2021_09 =  read.csv("202109-divvy-tripdata.csv")
+cyc_2021_10 =  read.csv("202110-divvy-tripdata.csv")
+cyc_2021_11 =  read.csv("202111-divvy-tripdata.csv")
+cyc_2021_12 =  read.csv("202112-divvy-tripdata.csv")
+cyc_2022_01 =  read.csv("202201-divvy-tripdata.csv")
+cyc_2022_02 =  read.csv("202202-divvy-tripdata.csv")
+cyc_2022_03 =  read.csv("202203-divvy-tripdata.csv")
+cyc_2022_04 =  read.csv("202204-divvy-tripdata.csv")
+cyc_2022_05 =  read.csv("202205-divvy-tripdata.csv")
+```
+
+
+
+colnames(cyc_2021_05)
+
+### Inspect dataframes for incongruencies
+```{r}
+str(cyc_2021_05)
+```
+## Binding all data frames into one
+
+```{r}
+all_trips = bind_rows(
+    cyc_2021_05,
+    cyc_2021_06,
+    cyc_2021_07,
+    cyc_2021_08,
+    cyc_2021_09,
+    cyc_2021_10,
+    cyc_2021_11,
+    cyc_2021_12,
+    cyc_2022_01,
+    cyc_2022_02,
+    cyc_2022_03,
+    cyc_2022_04,
+    cyc_2022_05
+    
+)
+```
+### Removing unnecessary attributes
+```{r}
+all_trips = all_trips %>%  
+  select(-c(start_lat, start_lng, end_lat, end_lng))
+
+```
+
+## Cleaning and inspecting
+```{r}
+colnames(all_trips) #column names
+
+nrow(all_trips) #number of rows
+
+dim(all_trips) #dimension
+
+head(all_trips) #first 6 rows
+
+str(all_trips) #structure
+
+summary(all_trips) #summary
+```
+```{r}
+table(all_trips$member_casual)
+```
+### Altering date formats
+```{r}
+all_trips$date = as.Date(all_trips$started_at)
+all_trips$month = format(as.Date(all_trips$date), "%m")
+all_trips$day = format(as.Date(all_trips$date), "%d")
+all_trips$year = format(as.Date(all_trips$date), "%Y")
+all_trips$day_of_week = format(as.Date(all_trips$date), "%A")
+all_trips$month_of_year = format(as.Date(all_trips$date),"%b")
+head(all_trips)
+```
+## Adding a new variable 'ride_length'
+```{r}
+all_trips$ride_length = difftime(all_trips$ended_at,all_trips$started_at)
+
+
+```
+
+## Modifying new varible
+```{r}
+is.factor(all_trips$ride_length)
+all_trips$ride_length = as.numeric(as.character(all_trips$ride_length))
+is.numeric(all_trips$ride_length)
+
+```
+
+## Removing data that included inspection by cyclist workers
+```{r}
+all_trips_v2 = all_trips[!(all_trips$start_station_name == "HQ QR" | all_trips$ride_length<0),]
+```
+
+# Analysis
+```{r}
+mean(all_trips_v2$ride_length) #straight average
+median(all_trips_v2$ride_length) #midpoint number in the ascending array of ride lengths
+max(all_trips_v2$ride_length) #longest ride
+min(all_trips_v2$ride_length) #shortest ride
+summary(all_trips_v2$ride_length)
+```
+
+```{r}
+##using the aggregate function(much like the group by function in sql)it splits the data into a subset. Then place mathematical function to process the data
+##First variable is what the function will operate for. Second function is what code will group by. In this case we are telling the code to find the mean of ride length, Grouped by member_casual
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = mean)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = median)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = max)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = min)
+
+```
+```{r}
+# See the average ride time by each day for members vs casual users
+###If you want to add more than one group criteria make sure to add an '+' not '~'
+aggregate(all_trips_v2$ride_length~all_trips_v2$member_casual+all_trips_v2$day,
+          FUN = mean)
+```
+
+```{r}
+# Notice that the days of the week and month of year are out of order. Let's fix that.
+all_trips_v2$day_of_week = ordered(all_trips_v2$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+all_trips_v2$month_of_year = ordered(all_trips_v2$month_of_year,
+                                     levels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+all_trips_v2 %>% 
+  group_by(day_of_week,member_casual) %>% 
+  summarize(mean(ride_length))
+all_trips_v2 %>% 
+  group_by(month_of_year,member_casual) %>% 
+  summarize(mean(ride_length))
+```
+
+
+# Data type vs Weekday
+```{r}
+# analyze ridership data by type and weekday
+###n() the same as a count function. it will count everything the summaries syntax has. In this case we conditioned the summarized syntax by first grouping the table
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual, weekday) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()           #calculates the number of rides and average duration 
+  ,average_duration = mean(ride_length)) %>%        # calculates the average duration
+  arrange(member_casual, weekday) 
+```
+# Data type vs Month
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, month_of_year) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()           #calculates the number of rides and average duration 
+  ,average_duration = mean(ride_length)) %>%        # calculates the average duration
+  arrange(member_casual, month_of_year) 
+```
+# Visualization
+
+## Number of rides by rider type per day
+```{r}
+all_trips_v2_viz = all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  
+  group_by(member_casual, weekday) %>%  
+  summarise(number_of_rides = n()                            
+  ,average_duration = mean(ride_length)) %>%    
+  arrange(member_casual, weekday)
+
+all_trips_v2_viz %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")+
+  scale_y_continuous(name="Number of Rides", limits=c(0, 620000))+
+  scale_x_discrete(name="Weekday")+
+  labs(title="Number of rides per day",subtitle = "Comaparing membership types by ride count",
+       caption = "All data was provided by Google Analytics Certification")+
+  guides(fill=guide_legend(title="Membership Type"))
+```
+
+## Average duration per day
+```{r}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average Time Spent Cycling(in seconds) per Day",
+       subtitle = "How much time each member type spends on a Cyclist bike",
+       caption = "All data was provided by Google Analytics Certification")+
+  guides(fill=guide_legend(title="Membership Type"))+
+  xlab("Weekday") +
+  ylab("Average Duration")
+```
+
+## Number of rides by rider type per Month
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual,month_of_year) %>% 
+  summarize(number_of_rides = n(),
+            average_duration = mean(ride_length)) %>% 
+  arrange(member_casual,month_of_year) %>% 
+  ggplot(aes(x = month_of_year, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")+
+  xlab("Month")+
+  ylab("Number of Rides")+
+  labs(title="Number of rides per Month",subtitle = "Comaparing membership types by ride count",
+       caption = "All data was provided by Google Analytics Certification")+ 
+  theme(axis.text.x = element_text(angle = 45))+
+  guides(fill=guide_legend(title="Membership Type"))+
+  facet_wrap(~member_casual)
+
+
+```
+
+## Average duration per Month
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual, month_of_year) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, month_of_year)  %>% 
+  ggplot(aes(x = month_of_year, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average Time Spent Cycling(in seconds) per Month",
+       subtitle = "How much time each member type spends on a Cyclist bike",
+       caption = "All data was provided by Google Analytics Certification")+
+  guides(fill=guide_legend(title="Membership Type"))+
+  xlab("Month") +
+  ylab("Average Duration")
+```
+## Riding type Usage based on number of rides
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual,rideable_type) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, rideable_type) %>% 
+  ggplot(aes(x = rideable_type, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "Bike Type Preference", subtitle = "Comparing membership type to bike type",
+       caption = "All data was provided by Google Analytics Certification")+
+  guides(fill=guide_legend(title="Membership Type"))+
+  xlab("Bike Type")+
+  ylab("Number of rides")
+  
+```
+## Riding type Usage based on average time spent on bike
+```{r}
+all_trips_v2 %>% 
+  group_by(member_casual,rideable_type) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, rideable_type) %>% 
+  ggplot(aes(x = rideable_type, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "Bike Type Preference", subtitle = "Comparing membership type to bike type",
+       caption = "All data was provided by Google Analytics Certification")+
+  gghighlight(rideable_type=="docked_bike")+
+  guides(fill=guide_legend(title="Membership Type"))+
+  xlab("Bike Type")+
+  ylab("Average Time Spent")
+    
+```
+
+

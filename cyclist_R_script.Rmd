@@ -211,7 +211,7 @@ all_trips_v2 %>%
 ```
 
 ## Number of rides by rider type per Month
-```{r}
+```{r, eval=TRUE}
 all_trips_v2 %>% 
   group_by(member_casual,month_of_year) %>% 
   summarize(number_of_rides = n(),

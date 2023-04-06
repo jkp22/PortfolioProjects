@@ -60,7 +60,7 @@ all_trips = bind_rows(
 )
 ```
 ### Removing unnecessary attributes
-```{r}
+```{r, eval=TRUE}
 all_trips = all_trips %>%  
   select(-c(start_lat, start_lng, end_lat, end_lng))
 
@@ -174,7 +174,7 @@ all_trips_v2 %>%
 # Visualization
 
 ## Number of rides by rider type per day
-```{r}
+```{r, eval=TRUE}
 all_trips_v2_viz = all_trips_v2 %>% 
   mutate(weekday = wday(started_at, label = TRUE)) %>%  
   group_by(member_casual, weekday) %>%  
@@ -193,7 +193,7 @@ all_trips_v2_viz %>%
 ```
 
 ## Average duration per day
-```{r}
+```{r, eval=TRUE}
 all_trips_v2 %>% 
   mutate(weekday = wday(started_at, label = TRUE)) %>% 
   group_by(member_casual, weekday) %>% 
